@@ -1,0 +1,4 @@
+services:
+  kick-output:
+    devices:
+      - /dev/dri:/dev/dri

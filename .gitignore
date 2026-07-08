@@ -1,0 +1,26 @@
+# Local secrets and runtime configuration
+.env
+
+# YouTube session cookies. These can grant account access.
+cookies/
+
+# Runtime state and generated local HLS output
+hls/
+state/
+
+# Future Acestream generated outputs
+output/
+*.acelive
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
