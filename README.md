@@ -82,10 +82,12 @@ http://hls-origin/live/index.m3u8
 With gluetun, Kick uses by default:
 
 ```text
-http://host.docker.internal:8080/live/index.m3u8
+http://127.0.0.1/live/index.m3u8
 ```
 
-On Linux hosts, `compose.gluetun.yaml` maps `host.docker.internal` to Docker's `host-gateway` so the Kick container can reach the local HLS origin while sharing the gluetun network namespace.
+With `compose.gluetun.yaml`, both `hls-origin` and `kick-output` share the gluetun network namespace. This lets Kick read the local HLS feed through `127.0.0.1` without relying on `host.docker.internal`, which is not portable across Linux hosts.
+
+If you had an older `.env` with `LOCAL_HLS_URL_GLUETUN=http://host.docker.internal:...`, remove that variable. The gluetun overlay now uses `LOCAL_HLS_URL_GLUETUN_NAMESPACE` instead.
 
 ## Shared State
 
