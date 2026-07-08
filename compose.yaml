@@ -65,3 +65,4 @@ services:
       PRESET: "${PRESET:-veryfast}"
       HWENC_MODE: "${HWENC_MODE:-software}"
       VAAPI_DEVICE: "${VAAPI_DEVICE:-/dev/dri/renderD128}"
+      VAAPI_DRIVER: "${VAAPI_DRIVER:-}"
