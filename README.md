@@ -85,6 +85,8 @@ With gluetun, Kick uses by default:
 http://host.docker.internal:8080/live/index.m3u8
 ```
 
+On Linux hosts, `compose.gluetun.yaml` maps `host.docker.internal` to Docker's `host-gateway` so the Kick container can reach the local HLS origin while sharing the gluetun network namespace.
+
 ## Shared State
 
 `source-manager` writes state to:
