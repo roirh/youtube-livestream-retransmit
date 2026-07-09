@@ -4,7 +4,7 @@
 
 This stack detects active live streams on an external YouTube channel, filters them by title using a regex, and restreams the matching live stream to other platforms. It currently publishes to Kick and keeps the architecture ready for additional outputs, such as Acestream, without changing the YouTube detection logic.
 
-The input is resolved with `yt-dlp`, so it can also work with streams that require a logged-in session, including members-only live streams, by mounting a valid cookies file at `./cookies/cookies.txt`.
+The input is resolved with `yt-dlp`, so it can also work with streams that require a logged-in session, including members-only live streams, by mounting a valid cookies file from `COOKIES_DIR` as `/cookies/cookies.txt`.
 
 To avoid consuming YouTube multiple times, the system first creates a single local HLS feed and all outputs consume that internal HLS feed.
 
@@ -30,6 +30,7 @@ Main variables:
 - `YOUTUBE_TITLE_REGEX`: regex the live stream title must match.
 - `YOUTUBE_ACTIVE_WINDOW_UTC`: UTC polling window, for example `10:00-20:00`. Empty means all day.
 - `YOUTUBE_POLL_INTERVAL`: interval in seconds. With `10:00-20:00` and `600`, the estimated cost is `6000 units/day`.
+- `COOKIES_DIR`: local directory containing `cookies.txt`. Defaults to `../cookies`.
 - `KICK_KEY`: Kick stream key.
 - `KICK_TRANSCODE_MODE`: `transcode` by default; `copy` if you want to test direct remuxing to Kick.
 

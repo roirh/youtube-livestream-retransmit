@@ -4,7 +4,7 @@
 
 Este stack detecta directos activos en un canal externo de YouTube, filtra por titulo usando una regex y retransmite el directo a otras plataformas. Actualmente publica a Kick y deja preparada la arquitectura para anadir mas salidas, como Acestream, sin tocar la logica de deteccion de YouTube.
 
-La entrada se resuelve con `yt-dlp`, por lo que tambien puede trabajar con streams que requieren sesion, incluidos directos de solo miembros, montando un archivo de cookies valido en `./cookies/cookies.txt`.
+La entrada se resuelve con `yt-dlp`, por lo que tambien puede trabajar con streams que requieren sesion, incluidos directos de solo miembros, montando un archivo de cookies valido desde `COOKIES_DIR` como `/cookies/cookies.txt`.
 
 Para evitar consumir YouTube varias veces, el sistema crea primero un HLS local unico y las salidas consumen ese HLS interno.
 
@@ -30,6 +30,7 @@ Variables principales:
 - `YOUTUBE_TITLE_REGEX`: regex que debe cumplir el titulo del directo.
 - `YOUTUBE_ACTIVE_WINDOW_UTC`: ventana UTC de polling, por ejemplo `10:00-20:00`. Vacio significa todo el dia.
 - `YOUTUBE_POLL_INTERVAL`: intervalo en segundos. Con `10:00-20:00` y `600`, el coste estimado es `6000 units/dia`.
+- `COOKIES_DIR`: directorio local que contiene `cookies.txt`. Por defecto `./cookies`.
 - `KICK_KEY`: stream key de Kick.
 - `KICK_TRANSCODE_MODE`: `transcode` por defecto; `copy` si quieres probar remux directo a Kick.
 
