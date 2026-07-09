@@ -15,7 +15,7 @@ services:
       COOKIES_FILE: "/cookies/cookies.txt"
     volumes:
       - ./state:/state
-      - ./cookies:/cookies
+      - ../cookies:/cookies
 
   ingest-worker:
     build: .
