@@ -10,13 +10,13 @@ To avoid consuming YouTube multiple times, the system first creates a single loc
 
 The stack is split into two responsibilities:
 
-- `source-manager`: queries YouTube, filters by regex, and extracts the live stream HLS URL.
+- `source-manager`: lists YouTube channel streams with `yt-dlp`, filters live videos by regex, and extracts the live stream HLS URL.
 - `ingest-worker`, `hls-origin`, and `kick-output`: generate a single local HLS feed and publish it to Kick.
 
 Flow:
 
 ```text
-YouTube API -> yt-dlp -> ffmpeg -c copy -> local HLS -> ffmpeg -> Kick
+yt-dlp channel streams -> yt-dlp HLS URL -> ffmpeg -c copy -> local HLS -> ffmpeg -> Kick
 ```
 
 ## Configuration
@@ -25,11 +25,11 @@ Copy `.env.example` to `.env` and adjust the values.
 
 Main variables:
 
-- `YOUTUBE_API_KEY`: YouTube Data API v3 API key.
 - `YOUTUBE_CHANNEL_ID`: external channel to monitor.
 - `YOUTUBE_TITLE_REGEX`: regex the live stream title must match.
 - `YOUTUBE_ACTIVE_WINDOW_UTC`: UTC polling window, for example `10:00-20:00`. Empty means all day.
-- `YOUTUBE_POLL_INTERVAL`: interval in seconds. With `10:00-20:00` and `600`, the estimated cost is `6000 units/day`.
+- `YOUTUBE_POLL_INTERVAL`: interval in seconds. Defaults to `300`.
+- `YOUTUBE_PLAYLIST_END`: number of channel stream entries inspected by `yt-dlp`. Defaults to `10`.
 - `COOKIES_DIR`: local directory containing `cookies.txt`. Defaults to `../cookies`.
 - `KICK_KEY`: Kick stream key.
 - `KICK_TRANSCODE_MODE`: `transcode` by default; `copy` if you want to test direct remuxing to Kick.

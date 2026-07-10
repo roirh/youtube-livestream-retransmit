@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -u
 
-: "${YOUTUBE_API_KEY:?Missing YOUTUBE_API_KEY}"
 : "${YOUTUBE_CHANNEL_ID:?Missing YOUTUBE_CHANNEL_ID}"
 
 STATE_FILE="${STATE_FILE:-/state/current.json}"
-POLL_INTERVAL="${YOUTUBE_POLL_INTERVAL:-600}"
+POLL_INTERVAL="${YOUTUBE_POLL_INTERVAL:-300}"
 OUTSIDE_WINDOW_SLEEP="${OUTSIDE_WINDOW_SLEEP:-300}"
 YOUTUBE_TITLE_REGEX="${YOUTUBE_TITLE_REGEX:-.*}"
 YOUTUBE_ACTIVE_WINDOW_UTC="${YOUTUBE_ACTIVE_WINDOW_UTC:-}"
+YOUTUBE_PLAYLIST_END="${YOUTUBE_PLAYLIST_END:-10}"
 COOKIES_FILE="${COOKIES_FILE:-/cookies/cookies.txt}"
 YTDLP_FORMAT="${YTDLP_FORMAT:-best[protocol^=m3u8][height<=720]/best[height<=720]/best}"
 
@@ -161,34 +161,28 @@ resolve_hls_url() {
 }
 
 find_matching_live() {
-  local response_file api_error item video_id title watch_url hls_url
+  local response_file video_id title live_status ignored watch_url hls_url streams_url
   response_file="$(mktemp)"
+  streams_url="https://www.youtube.com/channel/${YOUTUBE_CHANNEL_ID}/streams"
 
-  if ! curl -fsS --get "https://www.googleapis.com/youtube/v3/search" \
-    --data-urlencode "part=snippet" \
-    --data-urlencode "channelId=$YOUTUBE_CHANNEL_ID" \
-    --data-urlencode "eventType=live" \
-    --data-urlencode "type=video" \
-    --data-urlencode "maxResults=10" \
-    --data-urlencode "key=$YOUTUBE_API_KEY" \
-    -o "$response_file"; then
-    echo "[source-manager] YouTube API request failed; keeping current state" >&2
+  if ! yt-dlp "${YT_DLP_ARGS[@]}" \
+    --flat-playlist \
+    --playlist-end "$YOUTUBE_PLAYLIST_END" \
+    --print $'%(id)s\t%(title)s\t%(live_status)s' \
+    "$streams_url" > "$response_file"; then
+    echo "[source-manager] yt-dlp playlist request failed; keeping current state" >&2
     rm -f "$response_file"
     return 2
   fi
 
-  api_error="$(jq -r '.error.message // empty' "$response_file")"
-  if [ -n "$api_error" ]; then
-    echo "[source-manager] YouTube API error: $api_error" >&2
-    rm -f "$response_file"
-    return 2
-  fi
-
-  while IFS= read -r item; do
-    video_id="$(printf '%s' "$item" | base64 -d | jq -r '.id.videoId // empty')"
-    title="$(printf '%s' "$item" | base64 -d | jq -r '.snippet.title // empty')"
+  while IFS=$'\t' read -r video_id title live_status ignored; do
+    live_status="${live_status:-NA}"
 
     if [ -z "$video_id" ] || [ -z "$title" ]; then
+      continue
+    fi
+
+    if [ "$live_status" != "NA" ] && [ "$live_status" != "is_live" ]; then
       continue
     fi
 
@@ -210,7 +204,7 @@ find_matching_live() {
     write_live "$video_id" "$title" "$watch_url" "$hls_url"
     rm -f "$response_file"
     return 0
-  done < <(jq -r '.items[]? | @base64' "$response_file")
+  done < "$response_file"
 
   rm -f "$response_file"
   return 1
@@ -219,6 +213,7 @@ find_matching_live() {
 echo "[source-manager] Channel ID: $YOUTUBE_CHANNEL_ID"
 echo "[source-manager] Title regex: $YOUTUBE_TITLE_REGEX"
 echo "[source-manager] Active UTC window: ${YOUTUBE_ACTIVE_WINDOW_UTC:-always}"
+echo "[source-manager] Playlist end: $YOUTUBE_PLAYLIST_END"
 echo "[source-manager] Poll interval: ${POLL_INTERVAL}s"
 
 while true; do
@@ -230,7 +225,7 @@ while true; do
     continue
   fi
 
-  echo "[source-manager] Polling YouTube live videos..."
+  echo "[source-manager] Polling YouTube streams..."
 
   find_matching_live
   result=$?

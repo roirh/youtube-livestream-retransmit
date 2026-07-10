@@ -5,11 +5,11 @@ services:
     restart: unless-stopped
     command: ["/app/scripts/source-manager.sh"]
     environment:
-      YOUTUBE_API_KEY: "${YOUTUBE_API_KEY}"
       YOUTUBE_CHANNEL_ID: "${YOUTUBE_CHANNEL_ID}"
       YOUTUBE_TITLE_REGEX: "${YOUTUBE_TITLE_REGEX:-.*}"
       YOUTUBE_ACTIVE_WINDOW_UTC: "${YOUTUBE_ACTIVE_WINDOW_UTC:-}"
-      YOUTUBE_POLL_INTERVAL: "${YOUTUBE_POLL_INTERVAL:-600}"
+      YOUTUBE_POLL_INTERVAL: "${YOUTUBE_POLL_INTERVAL:-300}"
+      YOUTUBE_PLAYLIST_END: "${YOUTUBE_PLAYLIST_END:-10}"
       YTDLP_FORMAT: "${YTDLP_FORMAT:-best[protocol^=m3u8][height<=720]/best[height<=720]/best}"
       STATE_FILE: "/state/current.json"
       COOKIES_FILE: "/cookies/cookies.txt"
