@@ -160,6 +160,27 @@ resolve_hls_url() {
   printf '%s\n' "${urls[0]}"
 }
 
+confirm_live_video() {
+  local watch_url="$1"
+  local lines=() line is_live verified_live_status ignored
+
+  mapfile -t lines < <(yt-dlp "${YT_DLP_ARGS[@]}" \
+    --skip-download \
+    --print $'%(is_live)s\t%(live_status)s' \
+    "$watch_url" || true)
+
+  if [ "${#lines[@]}" -eq 0 ] || [ -z "${lines[0]}" ]; then
+    return 1
+  fi
+
+  line="${lines[0]}"
+  IFS=$'\t' read -r is_live verified_live_status ignored <<< "$line"
+
+  echo "[source-manager] Candidate metadata: is_live=${is_live:-NA}, live_status=${verified_live_status:-NA}"
+
+  [ "$is_live" = "True" ] || [ "$is_live" = "true" ] || [ "$verified_live_status" = "is_live" ]
+}
+
 find_matching_live() {
   local response_file video_id title live_status ignored watch_url hls_url streams_url
   response_file="$(mktemp)"
@@ -194,7 +215,14 @@ find_matching_live() {
     fi
 
     watch_url="https://www.youtube.com/watch?v=${video_id}"
-    echo "[source-manager] Candidate matches regex. Resolving HLS URL..."
+    echo "[source-manager] Candidate matches regex. Verifying live status..."
+
+    if ! confirm_live_video "$watch_url"; then
+      echo "[source-manager] Candidate is not currently live. Skipping."
+      continue
+    fi
+
+    echo "[source-manager] Candidate is live. Resolving HLS URL..."
 
     if ! hls_url="$(resolve_hls_url "$watch_url")"; then
       echo "[source-manager] yt-dlp failed to resolve HLS URL for $watch_url" >&2

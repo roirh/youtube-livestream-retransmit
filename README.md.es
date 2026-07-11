@@ -30,7 +30,7 @@ Variables principales:
 - `YOUTUBE_PLAYLIST_END`: numero de entradas del canal que inspecciona `yt-dlp`. Por defecto `10`.
 - `COOKIES_DIR`: directorio local que contiene `cookies.txt`. Por defecto `./cookies`.
 - `KICK_KEY`: stream key de Kick.
-- `STATE_POLL_INTERVAL`: intervalo en segundos para que `kick-output` espere estado live. Por defecto `5`.
+- `STATE_POLL_INTERVAL`: intervalo en segundos para que `kick-output` espere estado live. Por defecto `30`.
 - `KICK_TRANSCODE_MODE`: `transcode` por defecto; `copy` si quieres probar remux directo a Kick.
 
 ## Uso
