@@ -4,8 +4,11 @@ set -u
 : "${KICK_URL:?Missing KICK_URL}"
 : "${KICK_KEY:?Missing KICK_KEY}"
 
-LOCAL_HLS_URL="${LOCAL_HLS_URL:-http://hls-origin/live/index.m3u8}"
+STATE_FILE="${STATE_FILE:-/state/current.json}"
 RETRY_DELAY="${RETRY_DELAY:-10}"
+STATE_POLL_INTERVAL="${STATE_POLL_INTERVAL:-30}"
+COOKIES_FILE="${COOKIES_FILE:-/cookies/cookies.txt}"
+YTDLP_FORMAT="${YTDLP_FORMAT:-best[protocol^=m3u8][height<=720]/best[height<=720]/best}"
 VIDEO_BITRATE="${VIDEO_BITRATE:-6000k}"
 AUDIO_BITRATE="${AUDIO_BITRATE:-160k}"
 FPS="${FPS:-60}"
@@ -20,13 +23,66 @@ if [ -n "$VAAPI_DRIVER" ]; then
   export LIBVA_DRIVER_NAME="$VAAPI_DRIVER"
 fi
 
-OUTPUT_URL="${KICK_URL%/}/${KICK_KEY}"
+YT_DLP_ARGS=(
+  --js-runtimes deno
+  --remote-components ejs:npm
+)
 
-wait_for_hls() {
-  until curl -fsS --max-time 5 "$LOCAL_HLS_URL" >/dev/null; do
-    echo "[kick-output] Waiting for local HLS: $LOCAL_HLS_URL"
-    sleep "$RETRY_DELAY"
+if [ -f "$COOKIES_FILE" ]; then
+  echo "[kick-output] Using cookies file: $COOKIES_FILE"
+  YT_DLP_ARGS+=(--cookies "$COOKIES_FILE")
+else
+  echo "[kick-output] No cookies file found at $COOKIES_FILE; continuing without cookies"
+fi
+
+OUTPUT_URL="${KICK_URL%/}/${KICK_KEY}"
+INPUT_URL=""
+CURRENT_VIDEO_ID=""
+CURRENT_WATCH_URL=""
+
+read_live_state() {
+  if [ ! -f "$STATE_FILE" ]; then
+    echo "[kick-output] Waiting for state file: $STATE_FILE"
+    return 1
+  fi
+
+  if ! jq empty "$STATE_FILE" >/dev/null 2>&1; then
+    echo "[kick-output] Invalid state JSON. Waiting..."
+    return 1
+  fi
+
+  status="$(jq -r '.status // "idle"' "$STATE_FILE")"
+  if [ "$status" != "live" ]; then
+    reason="$(jq -r '.reason // "unknown"' "$STATE_FILE")"
+    echo "[kick-output] Source is idle ($reason). Waiting..."
+    return 1
+  fi
+
+  CURRENT_VIDEO_ID="$(jq -r '.video_id // empty' "$STATE_FILE")"
+  CURRENT_WATCH_URL="$(jq -r '.watch_url // empty' "$STATE_FILE")"
+
+  if [ -z "$CURRENT_VIDEO_ID" ] || [ -z "$CURRENT_WATCH_URL" ]; then
+    echo "[kick-output] Live state is missing video_id or watch_url. Waiting..."
+    return 1
+  fi
+}
+
+wait_for_live_state() {
+  until read_live_state; do
+    sleep "$STATE_POLL_INTERVAL"
   done
+}
+
+resolve_input_url() {
+  local urls=()
+
+  mapfile -t urls < <(yt-dlp "${YT_DLP_ARGS[@]}" -f "$YTDLP_FORMAT" -g "$CURRENT_WATCH_URL" || true)
+
+  if [ "${#urls[@]}" -eq 0 ] || [ -z "${urls[0]}" ]; then
+    return 1
+  fi
+
+  INPUT_URL="${urls[0]}"
 }
 
 common_input_args() {
@@ -37,7 +93,7 @@ common_input_args() {
     -reconnect_on_network_error 1 \
     -reconnect_on_http_error 4xx,5xx \
     -reconnect_delay_max 5 \
-    -i "$LOCAL_HLS_URL"
+    -i "$INPUT_URL"
 }
 
 run_ffmpeg_copy() {
@@ -120,16 +176,24 @@ run_ffmpeg_vaapi() {
     -f flv "$OUTPUT_URL"
 }
 
-echo "[kick-output] Local HLS URL: $LOCAL_HLS_URL"
+echo "[kick-output] State file: $STATE_FILE"
 echo "[kick-output] Kick URL: ${KICK_URL%/}/********"
 echo "[kick-output] Transcode mode: $KICK_TRANSCODE_MODE"
 echo "[kick-output] HWENC_MODE: $HWENC_MODE"
 echo "[kick-output] VAAPI_DRIVER: ${VAAPI_DRIVER:-auto}"
+echo "[kick-output] YTDLP format: $YTDLP_FORMAT"
 
 while true; do
-  wait_for_hls
+  wait_for_live_state
 
-  echo "[kick-output] Starting Kick output..."
+  echo "[kick-output] Resolving fresh YouTube stream URL for video $CURRENT_VIDEO_ID..."
+  if ! resolve_input_url; then
+    echo "[kick-output] yt-dlp failed to resolve URL. Retrying in ${RETRY_DELAY}s..."
+    sleep "$RETRY_DELAY"
+    continue
+  fi
+
+  echo "[kick-output] Starting Kick output for video $CURRENT_VIDEO_ID..."
 
   case "$KICK_TRANSCODE_MODE" in
     copy)

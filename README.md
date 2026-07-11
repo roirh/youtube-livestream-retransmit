@@ -6,17 +6,15 @@ This stack detects active live streams on an external YouTube channel, filters t
 
 The input is resolved with `yt-dlp`, so it can also work with streams that require a logged-in session, including members-only live streams, by mounting a valid cookies file from `COOKIES_DIR` as `/cookies/cookies.txt`.
 
-To avoid consuming YouTube multiple times, the system first creates a single local HLS feed and all outputs consume that internal HLS feed.
-
 The stack is split into two responsibilities:
 
-- `source-manager`: lists YouTube channel streams with `yt-dlp`, filters live videos by regex, and extracts the live stream HLS URL.
-- `ingest-worker`, `hls-origin`, and `kick-output`: generate a single local HLS feed and publish it to Kick.
+- `source-manager`: lists YouTube channel streams with `yt-dlp`, filters live videos by regex, and writes the matching YouTube `watch_url` to shared state.
+- `kick-output`: reads the shared state, resolves a fresh stream URL with `yt-dlp -g`, and publishes it directly to Kick with `ffmpeg`.
 
 Flow:
 
 ```text
-yt-dlp channel streams -> yt-dlp HLS URL -> ffmpeg -c copy -> local HLS -> ffmpeg -> Kick
+yt-dlp channel streams -> shared state -> yt-dlp stream URL -> ffmpeg -> Kick
 ```
 
 ## Configuration
@@ -32,6 +30,7 @@ Main variables:
 - `YOUTUBE_PLAYLIST_END`: number of channel stream entries inspected by `yt-dlp`. Defaults to `10`.
 - `COOKIES_DIR`: local directory containing `cookies.txt`. Defaults to `../cookies`.
 - `KICK_KEY`: Kick stream key.
+- `STATE_POLL_INTERVAL`: interval in seconds for `kick-output` to wait for live state. Defaults to `30`.
 - `KICK_TRANSCODE_MODE`: `transcode` by default; `copy` if you want to test direct remuxing to Kick.
 
 ## Usage
@@ -60,35 +59,11 @@ With gluetun and VAAPI:
 docker compose -f compose.yaml -f compose.gluetun.yaml -f compose.vaapi.yaml up -d --build
 ```
 
-## Local HLS
+## Kick Output
 
-`ingest-worker` consumes YouTube once and writes:
+`kick-output` no longer consumes a local HLS URL. For each retry it reads `watch_url` from `./state/current.json`, resolves a fresh direct stream URL with `yt-dlp -g`, then passes that URL to `ffmpeg`.
 
-```text
-./hls/live/index.m3u8
-```
-
-`hls-origin` serves it on the host through localhost:
-
-```text
-http://127.0.0.1:8080/live/index.m3u8
-```
-
-Inside the normal Docker network, Kick uses:
-
-```text
-http://hls-origin/live/index.m3u8
-```
-
-With gluetun, Kick uses by default:
-
-```text
-http://127.0.0.1/live/index.m3u8
-```
-
-With `compose.gluetun.yaml`, both `hls-origin` and `kick-output` share the gluetun network namespace. This lets Kick read the local HLS feed through `127.0.0.1` without relying on `host.docker.internal`, which is not portable across Linux hosts.
-
-If you had an older `.env` with `LOCAL_HLS_URL_GLUETUN=http://host.docker.internal:...`, remove that variable. The gluetun overlay now uses `LOCAL_HLS_URL_GLUETUN_NAMESPACE` instead.
+With `compose.gluetun.yaml`, only `kick-output` shares the gluetun network namespace. YouTube detection still runs through the normal Docker network.
 
 ## Shared State
 
@@ -119,26 +94,4 @@ Idle example:
   "reason": "no_matching_live",
   "updated_at": "2026-07-08T10:00:00Z"
 }
-```
-
-## Future Acestream Output
-
-Acestream should be another consumer of the local HLS feed. It does not need to know anything about YouTube.
-
-Expected command for the future container:
-
-```bash
-start-engine --create-hls-transport \
-  --url "$LOCAL_HLS_URL" \
-  --title "$TITLE" \
-  --hide-hls-manifest \
-  --hide-hls-segments \
-  --output-public "/output/live.acelive" \
-  --output-private "/output/live_private.acelive"
-```
-
-The Acestream input will be:
-
-```text
-http://hls-origin/live/index.m3u8
 ```

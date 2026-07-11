@@ -17,43 +17,18 @@ services:
       - ./state:/state
       - ${COOKIES_DIR:-./cookies}:/cookies
 
-  ingest-worker:
-    build: .
-    container_name: yt-ingest-worker
-    restart: unless-stopped
-    command: ["/app/scripts/ingest-worker.sh"]
-    depends_on:
-      - source-manager
-    environment:
-      STATE_FILE: "/state/current.json"
-      HLS_DIR: "/hls/live"
-      HLS_TIME: "${HLS_TIME:-4}"
-      HLS_LIST_SIZE: "${HLS_LIST_SIZE:-6}"
-      INGEST_RETRY_DELAY: "${INGEST_RETRY_DELAY:-10}"
-      STATE_POLL_INTERVAL: "${STATE_POLL_INTERVAL:-5}"
-    volumes:
-      - ./state:/state:ro
-      - ./hls:/hls
-
-  hls-origin:
-    image: nginx:alpine
-    container_name: local-hls-origin
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${HLS_ORIGIN_PORT:-8080}:80"
-    volumes:
-      - ./hls:/usr/share/nginx/html:ro
-
   kick-output:
     build: .
     container_name: kick-output
     restart: unless-stopped
     command: ["/app/scripts/kick-output.sh"]
     depends_on:
-      - hls-origin
-      - ingest-worker
+      - source-manager
     environment:
-      LOCAL_HLS_URL: "${LOCAL_HLS_URL:-http://hls-origin/live/index.m3u8}"
+      STATE_FILE: "/state/current.json"
+      STATE_POLL_INTERVAL: "${STATE_POLL_INTERVAL:-30}"
+      COOKIES_FILE: "/cookies/cookies.txt"
+      YTDLP_FORMAT: "${YTDLP_FORMAT:-best[protocol^=m3u8][height<=720]/best[height<=720]/best}"
       KICK_URL: "${KICK_URL:-rtmps://fa723fc1b171.global-contribute.live-video.net:443/app}"
       KICK_KEY: "${KICK_KEY}"
       RETRY_DELAY: "${RETRY_DELAY:-60}"
@@ -66,3 +41,6 @@ services:
       HWENC_MODE: "${HWENC_MODE:-software}"
       VAAPI_DEVICE: "${VAAPI_DEVICE:-/dev/dri/renderD128}"
       VAAPI_DRIVER: "${VAAPI_DRIVER:-}"
+    volumes:
+      - ./state:/state:ro
+      - ${COOKIES_DIR:-./cookies}:/cookies
